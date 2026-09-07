@@ -7,6 +7,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.function.Function;
@@ -14,10 +15,21 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    private static final String SECRET =
-            "your-secret-key-must-be-at-least-32-characters-long";
+    private final String secret = System.getenv("JWT_SECRET");
 
-    private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
+    private final Key key;
+
+    public JwtService() {
+        if (secret == null || secret.length() < 32) {
+            throw new IllegalStateException(
+                    "JWT_SECRET environment variable must be at least 32 characters long"
+            );
+        }
+
+        this.key = Keys.hmacShaKeyFor(
+                secret.getBytes(StandardCharsets.UTF_8)
+        );
+    }
 
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()
@@ -34,8 +46,9 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
-    public <T> T extractClaim(String token,
-                              Function<Claims, T> claimsResolver) {
+    public <T> T extractClaim(
+            String token,
+            Function<Claims, T> claimsResolver) {
 
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
@@ -53,10 +66,8 @@ public class JwtService {
             String token,
             UserDetails userDetails) {
 
-        final String username =
-                extractUsername(token);
+        final String username = extractUsername(token);
 
-        return username.equals(
-                userDetails.getUsername());
+        return username.equals(userDetails.getUsername());
     }
-}
+}q
