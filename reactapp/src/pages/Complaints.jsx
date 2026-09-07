@@ -1,1106 +1,312 @@
-import React, {
-    useEffect,
-    useMemo,
-    useState
-} from "react";
-
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import AppLayout from "../components/layout/AppLayout";
+import StatusBadge from "../components/complaint/StatusBadge";
+import PriorityBadge from "../components/complaint/PriorityBadge";
+import Pagination from "../components/common/Pagination";
+import Button from "../components/common/Button";
+import Icon from "../components/common/Icon";
+import complaintService from "../services/complaintService";
+import { getErrorMessage } from "../services/api";
 
-import Sidebar from "../components/Sidebar";
+export function Complaints() {
+  const navigate = useNavigate();
 
-import api from "../services/api";
+  const role = (localStorage.getItem("role") || "CITIZEN").toUpperCase();
+  const loggedInEmail = (localStorage.getItem("email") || "").toLowerCase().trim();
 
+  const [complaints, setComplaints] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-function Complaints() {
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [sortOrder, setSortOrder] = useState("NEWEST");
 
-    const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
-
-    // =====================================================
-    // USER
-    // =====================================================
-
-    const role =
-        localStorage.getItem("role") || "CITIZEN";
-
-    const loggedInEmail =
-        localStorage.getItem("email") || "";
-
-
-    // =====================================================
-    // STATE
-    // =====================================================
-
-    const [complaints, setComplaints] =
-        useState([]);
-
-    const [loading, setLoading] =
-        useState(true);
-
-    const [error, setError] =
-        useState("");
-
-
-    // =====================================================
-    // FILTER
-    // =====================================================
-
-    const [statusFilter, setStatusFilter] =
-        useState("ALL");
-
-    const [categoryFilter, setCategoryFilter] =
-        useState("ALL");
-
-    const [search, setSearch] =
-        useState("");
-
-
-    // =====================================================
-    // SORT
-    // =====================================================
-
-    const [sortOrder, setSortOrder] =
-        useState("NEWEST");
-
-
-    // =====================================================
-    // PAGINATION
-    // =====================================================
-
-    const [currentPage, setCurrentPage] =
-        useState(1);
-
-    const itemsPerPage = 5;
-
-
-    // =====================================================
-    // LOAD COMPLAINTS
-    // =====================================================
-
-    useEffect(() => {
-
-        loadComplaints();
-
-    }, []);
-
-
-    const loadComplaints = async () => {
-
-        try {
-
-            setLoading(true);
-
-            setError("");
-
-
-            const response =
-                await api.get("/complaints");
-
-
-            const data =
-                Array.isArray(response.data)
-                    ? response.data
-                    : [];
-
-
-            setComplaints(data);
-
-
-        } catch (err) {
-
-            console.error(
-                "Complaint loading error:",
-                err
-            );
-
-
-            if (
-                err.response?.status === 403
-            ) {
-
-                setError(
-                    "You are not authorized to view complaints."
-                );
-
-            } else {
-
-                setError(
-                    "Unable to load complaints."
-                );
-            }
-
-
-        } finally {
-
-            setLoading(false);
-
+  useEffect(() => {
+    let isMounted = true;
+    const fetchComplaints = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await complaintService.getAllComplaints();
+        if (isMounted) {
+          setComplaints(data);
         }
+      } catch (err) {
+        if (isMounted) {
+          setError(getErrorMessage(err, "Unable to load complaints."));
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     };
 
+    fetchComplaints();
 
-    // =====================================================
-    // ROLE BASED COMPLAINTS
-    // =====================================================
-
-    const roleComplaints = useMemo(() => {
-
-        // -------------------------------------------------
-        // ADMIN
-        // -------------------------------------------------
-
-        if (role === "ADMIN") {
-
-            return complaints;
-        }
-
-
-        // -------------------------------------------------
-        // CITIZEN
-        // -------------------------------------------------
-
-        if (role === "CITIZEN") {
-
-            return complaints.filter(
-                (complaint) => {
-
-                    const complainantEmail =
-                        complaint.complainant?.email ||
-                        complaint.user?.email ||
-                        complaint.email ||
-                        "";
-
-
-                    return (
-                        complainantEmail
-                            .toLowerCase()
-                            .trim() ===
-                        loggedInEmail
-                            .toLowerCase()
-                            .trim()
-                    );
-                }
-            );
-        }
-
-
-        // -------------------------------------------------
-        // EMPLOYEE
-        // -------------------------------------------------
-
-        if (role === "EMPLOYEE") {
-
-            return complaints.filter(
-                (complaint) => {
-
-                    const employeeEmail =
-                        complaint.assignedEmployee?.email ||
-                        "";
-
-
-                    return (
-                        employeeEmail
-                            .toLowerCase()
-                            .trim() ===
-                        loggedInEmail
-                            .toLowerCase()
-                            .trim()
-                    );
-                }
-            );
-        }
-
-
-        return [];
-
-    }, [
-        complaints,
-        role,
-        loggedInEmail
-    ]);
-
-
-    // =====================================================
-    // GET CATEGORIES
-    // =====================================================
-
-    const categories = useMemo(() => {
-
-        const values =
-            roleComplaints
-                .map(
-                    (complaint) =>
-                        complaint.category
-                )
-                .filter(Boolean);
-
-
-        return [
-            ...new Set(values)
-        ];
-
-    }, [roleComplaints]);
-
-
-    // =====================================================
-    // FILTER + SEARCH + SORT
-    // =====================================================
-
-    const filteredComplaints =
-        useMemo(() => {
-
-            let result =
-                [...roleComplaints];
-
-
-            // -------------------------------------------------
-            // STATUS FILTER
-            // -------------------------------------------------
-
-            if (
-                statusFilter !== "ALL"
-            ) {
-
-                result =
-                    result.filter(
-                        (complaint) =>
-                            complaint.status
-                                ?.toUpperCase() ===
-                            statusFilter
-                    );
-            }
-
-
-            // -------------------------------------------------
-            // CATEGORY FILTER
-            // -------------------------------------------------
-
-            if (
-                categoryFilter !== "ALL"
-            ) {
-
-                result =
-                    result.filter(
-                        (complaint) =>
-                            complaint.category ===
-                            categoryFilter
-                    );
-            }
-
-
-            // -------------------------------------------------
-            // SEARCH
-            // -------------------------------------------------
-
-            if (
-                search.trim() !== ""
-            ) {
-
-                const value =
-                    search
-                        .toLowerCase()
-                        .trim();
-
-
-                result =
-                    result.filter(
-                        (complaint) => {
-
-                            const title =
-                                complaint.title
-                                    ?.toLowerCase() ||
-                                "";
-
-
-                            const description =
-                                complaint.description
-                                    ?.toLowerCase() ||
-                                "";
-
-
-                            const category =
-                                complaint.category
-                                    ?.toLowerCase() ||
-                                "";
-
-
-                            const id =
-                                String(
-                                    complaint.id
-                                );
-
-
-                            return (
-                                title.includes(value) ||
-                                description.includes(value) ||
-                                category.includes(value) ||
-                                id.includes(value)
-                            );
-                        }
-                    );
-            }
-
-
-            // -------------------------------------------------
-            // SORT
-            // -------------------------------------------------
-
-            result.sort(
-                (a, b) => {
-
-                    const dateA =
-                        new Date(
-                            a.submittedAt || 0
-                        ).getTime();
-
-
-                    const dateB =
-                        new Date(
-                            b.submittedAt || 0
-                        ).getTime();
-
-
-                    if (
-                        sortOrder === "NEWEST"
-                    ) {
-
-                        return dateB - dateA;
-                    }
-
-
-                    if (
-                        sortOrder === "OLDEST"
-                    ) {
-
-                        return dateA - dateB;
-                    }
-
-
-                    if (
-                        sortOrder === "TITLE_ASC"
-                    ) {
-
-                        return (
-                            (a.title || "")
-                                .localeCompare(
-                                    b.title || ""
-                                )
-                        );
-                    }
-
-
-                    if (
-                        sortOrder === "TITLE_DESC"
-                    ) {
-
-                        return (
-                            (b.title || "")
-                                .localeCompare(
-                                    a.title || ""
-                                )
-                        );
-                    }
-
-
-                    return 0;
-                }
-            );
-
-
-            return result;
-
-        }, [
-            roleComplaints,
-            statusFilter,
-            categoryFilter,
-            search,
-            sortOrder
-        ]);
-
-
-    // =====================================================
-    // RESET PAGE WHEN FILTER CHANGES
-    // =====================================================
-
-    useEffect(() => {
-
-        setCurrentPage(1);
-
-    }, [
-        statusFilter,
-        categoryFilter,
-        search,
-        sortOrder
-    ]);
-
-
-    // =====================================================
-    // PAGINATION
-    // =====================================================
-
-    const totalPages =
-        Math.ceil(
-            filteredComplaints.length /
-            itemsPerPage
-        );
-
-
-    const startIndex =
-        (currentPage - 1) *
-        itemsPerPage;
-
-
-    const paginatedComplaints =
-        filteredComplaints.slice(
-            startIndex,
-            startIndex + itemsPerPage
-        );
-
-
-    // =====================================================
-    // STATUS CLASS
-    // =====================================================
-
-    const getStatusClass = (status) => {
-
-        const value =
-            status?.toUpperCase();
-
-
-        if (
-            value === "RESOLVED"
-        ) {
-
-            return "status status-resolved";
-        }
-
-
-        if (
-            value === "IN_PROGRESS" ||
-            value === "IN PROGRESS" ||
-            value === "ASSIGNED"
-        ) {
-
-            return "status status-progress";
-        }
-
-
-        if (
-            value === "CLOSED"
-        ) {
-
-            return "status status-resolved";
-        }
-
-
-        return "status status-pending";
+    return () => {
+      isMounted = false;
     };
+  }, []);
 
+  // Filter complaints based on role
+  const roleComplaints = useMemo(() => {
+    if (role === "ADMIN") {
+      return complaints;
+    }
+    if (role === "CITIZEN") {
+      return complaints.filter((c) => {
+        const cEmail = (c.complainant?.email || c.submitterEmail || c.email || "").toLowerCase().trim();
+        return cEmail === loggedInEmail;
+      });
+    }
+    // Employee sees all or can filter
+    return complaints;
+  }, [complaints, role, loggedInEmail]);
 
-    // =====================================================
-    // CLEAR FILTERS
-    // =====================================================
+  // Extract unique categories
+  const categories = useMemo(() => {
+    const cats = roleComplaints.map((c) => c.category).filter(Boolean);
+    return [...new Set(cats)];
+  }, [roleComplaints]);
 
-    const clearFilters = () => {
+  // Filter, search, and sort
+  const filteredComplaints = useMemo(() => {
+    let list = [...roleComplaints];
 
-        setSearch("");
-
-        setStatusFilter("ALL");
-
-        setCategoryFilter("ALL");
-
-        setSortOrder("NEWEST");
-
-        setCurrentPage(1);
-    };
-
-
-    // =====================================================
-    // PAGE CHANGE
-    // =====================================================
-
-    const goToPage = (page) => {
-
-        if (
-            page < 1 ||
-            page > totalPages
-        ) {
-
-            return;
-        }
-
-
-        setCurrentPage(page);
-    };
-
-
-    // =====================================================
-    // PAGE NUMBERS
-    // =====================================================
-
-    const pageNumbers = [];
-
-
-    for (
-        let i = 1;
-        i <= totalPages;
-        i++
-    ) {
-
-        pageNumbers.push(i);
+    if (statusFilter !== "ALL") {
+      list = list.filter(
+        (c) => (c.status || "").toUpperCase() === statusFilter.toUpperCase()
+      );
     }
 
+    if (categoryFilter !== "ALL") {
+      list = list.filter((c) => c.category === categoryFilter);
+    }
 
-    // =====================================================
-    // UI
-    // =====================================================
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      list = list.filter((c) => {
+        const title = (c.title || "").toLowerCase();
+        const desc = (c.description || "").toLowerCase();
+        const cat = (c.category || "").toLowerCase();
+        const id = String(c.id || "");
+        return title.includes(q) || desc.includes(q) || cat.includes(q) || id.includes(q);
+      });
+    }
 
-    return (
+    list.sort((a, b) => {
+      const dateA = new Date(a.submittedAt || a.submittedDate || 0).getTime();
+      const dateB = new Date(b.submittedAt || b.submittedDate || 0).getTime();
 
-        <div className="dashboard-layout">
+      if (sortOrder === "NEWEST") return dateB - dateA;
+      if (sortOrder === "OLDEST") return dateA - dateB;
+      if (sortOrder === "TITLE_ASC") return (a.title || "").localeCompare(b.title || "");
+      if (sortOrder === "TITLE_DESC") return (b.title || "").localeCompare(a.title || "");
+      return 0;
+    });
 
+    return list;
+  }, [roleComplaints, statusFilter, categoryFilter, search, sortOrder]);
 
-            {/* =================================================
-                SIDEBAR
-            ================================================= */}
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, categoryFilter, search, sortOrder]);
 
-            <Sidebar />
+  const totalPages = Math.ceil(filteredComplaints.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedComplaints = filteredComplaints.slice(startIndex, startIndex + itemsPerPage);
 
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("ALL");
+    setCategoryFilter("ALL");
+    setSortOrder("NEWEST");
+    setCurrentPage(1);
+  };
 
-            <main className="main-content">
+  const getPageTitle = () => {
+    if (role === "CITIZEN") return "My Complaints";
+    if (role === "EMPLOYEE") return "Complaints Directory";
+    return "All Complaints Management";
+  };
 
+  const getPageSubtitle = () => {
+    if (role === "CITIZEN") return "Track, review status updates, and view history of your complaints.";
+    if (role === "EMPLOYEE") return "Browse assigned and department complaints for resolution.";
+    return "Complete administrative oversight of all registered complaints.";
+  };
 
-                {/* =================================================
-                    HEADER
-                ================================================= */}
+  return (
+    <AppLayout
+      title={getPageTitle()}
+      subtitle={getPageSubtitle()}
+      rightAction={
+        role === "CITIZEN" && (
+          <Button
+            variant="primary"
+            icon={<Icon name="plus" size={16} />}
+            onClick={() => navigate("/complaints/create")}
+          >
+            New Complaint
+          </Button>
+        )
+      }
+    >
+      <div className="content-card">
+        {/* FILTER BAR */}
+        <div className="filter-bar">
+          <input
+            type="text"
+            placeholder="Search by ID, title, description..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="search-input"
+            data-testid="search-input"
+          />
 
-                <div className="topbar">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="form-select"
+            data-testid="status-filter"
+          >
+            <option value="ALL">All Status</option>
+            <option value="PENDING">Pending</option>
+            <option value="ASSIGNED">Assigned</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="RESOLVED">Resolved</option>
+            <option value="CLOSED">Closed</option>
+          </select>
+
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="form-select"
+          >
+            <option value="ALL">All Categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="form-select"
+          >
+            <option value="NEWEST">Newest First</option>
+            <option value="OLDEST">Oldest First</option>
+            <option value="TITLE_ASC">Title A-Z</option>
+            <option value="TITLE_DESC">Title Z-A</option>
+          </select>
+
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={clearFilters}
+          >
+            Reset
+          </button>
+        </div>
+
+        {/* RESULTS INFO */}
+        {!loading && !error && filteredComplaints.length > 0 && (
+          <div className="results-info">
+            Showing {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredComplaints.length)} of {filteredComplaints.length} complaints
+          </div>
+        )}
+
+        {/* STATES */}
+        {loading && <div className="empty-state">Loading complaints...</div>}
+
+        {!loading && error && (
+          <div className="error-state" role="alert">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && filteredComplaints.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-icon">✓</div>
+            <h3>No complaints found</h3>
+            <p>
+              {role === "CITIZEN"
+                ? "You haven't submitted any complaints matching this filter."
+                : "No complaints found matching the selected criteria."}
+            </p>
+          </div>
+        )}
+
+        {/* TABLE VIEW */}
+        {!loading && !error && paginatedComplaints.length > 0 && (
+          <>
+            <div className="table-responsive">
+              <div className="complaints-table">
+                <div className="table-header">
+                  <span>ID</span>
+                  <span>Complaint</span>
+                  <span>Category</span>
+                  <span>Status</span>
+                </div>
+
+                {paginatedComplaints.map((c) => (
+                  <div
+                    className="table-row"
+                    key={c.id}
+                    onClick={() => navigate(`/complaints/${c.id}`)}
+                  >
+                    <span style={{ fontWeight: "600", color: "var(--primary-600)" }}>
+                      #{c.id}
+                    </span>
 
                     <div>
-
-                        <h1 className="welcome-title">
-
-                            {role === "CITIZEN"
-                                ? "My Complaints"
-                                : role === "EMPLOYEE"
-                                    ? "Assigned Complaints"
-                                    : "All Complaints"}
-
-                        </h1>
-
-
-                        <p className="welcome-text">
-
-                            {role === "CITIZEN"
-                                ? "Track your submitted complaints."
-                                : role === "EMPLOYEE"
-                                    ? "View complaints assigned to you."
-                                    : "Manage and monitor all complaints."}
-
-                        </p>
-
+                      <strong style={{ color: "var(--slate-900)" }}>{c.title}</strong>
+                      <small
+                        style={{
+                          color: "var(--slate-500)",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 1,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden"
+                        }}
+                      >
+                        {c.description}
+                      </small>
                     </div>
 
+                    <span style={{ color: "var(--slate-700)" }}>
+                      {c.category || "-"}
+                    </span>
 
-                    {/* =================================================
-                        NEW COMPLAINT
-                    ================================================= */}
-
-                    {role === "CITIZEN" && (
-
-                        <button
-                            className="primary-button"
-                            onClick={() =>
-                                navigate(
-                                    "/complaints/create"
-                                )
-                            }
-                        >
-
-                            + New Complaint
-
-                        </button>
-
-                    )}
-
-                </div>
-
-
-                {/* =================================================
-                    MAIN CARD
-                ================================================= */}
-
-                <div className="content-card">
-
-
-                    {/* =================================================
-                        FILTER BAR
-                    ================================================= */}
-
-                    <div className="filter-bar">
-
-
-                        {/* SEARCH */}
-
-                        <input
-                            type="text"
-                            placeholder="Search complaints..."
-                            value={search}
-                            onChange={(e) =>
-                                setSearch(
-                                    e.target.value
-                                )
-                            }
-                            className="search-input"
-                        />
-
-
-                        {/* STATUS */}
-
-                        <select
-                            value={statusFilter}
-                            onChange={(e) =>
-                                setStatusFilter(
-                                    e.target.value
-                                )
-                            }
-                            className="form-select"
-                        >
-
-                            <option value="ALL">
-                                All Status
-                            </option>
-
-                            <option value="PENDING">
-                                Pending
-                            </option>
-
-                            <option value="ASSIGNED">
-                                Assigned
-                            </option>
-
-                            <option value="IN_PROGRESS">
-                                In Progress
-                            </option>
-
-                            <option value="RESOLVED">
-                                Resolved
-                            </option>
-
-                            <option value="CLOSED">
-                                Closed
-                            </option>
-
-                        </select>
-
-
-                        {/* CATEGORY */}
-
-                        <select
-                            value={categoryFilter}
-                            onChange={(e) =>
-                                setCategoryFilter(
-                                    e.target.value
-                                )
-                            }
-                            className="form-select"
-                        >
-
-                            <option value="ALL">
-                                All Categories
-                            </option>
-
-
-                            {categories.map(
-                                (category) => (
-
-                                    <option
-                                        key={category}
-                                        value={category}
-                                    >
-
-                                        {category}
-
-                                    </option>
-
-                                )
-                            )}
-
-                        </select>
-
-
-                        {/* SORT */}
-
-                        <select
-                            value={sortOrder}
-                            onChange={(e) =>
-                                setSortOrder(
-                                    e.target.value
-                                )
-                            }
-                            className="form-select"
-                        >
-
-                            <option value="NEWEST">
-                                Newest First
-                            </option>
-
-                            <option value="OLDEST">
-                                Oldest First
-                            </option>
-
-                            <option value="TITLE_ASC">
-                                Title A-Z
-                            </option>
-
-                            <option value="TITLE_DESC">
-                                Title Z-A
-                            </option>
-
-                        </select>
-
-
-                        {/* CLEAR */}
-
-                        <button
-                            className="secondary-button"
-                            onClick={
-                                clearFilters
-                            }
-                        >
-
-                            Clear
-
-                        </button>
-
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                      {c.priority && <PriorityBadge priority={c.priority} />}
+                      <StatusBadge status={c.status} />
                     </div>
-
-
-                    {/* =================================================
-                        RESULT COUNT
-                    ================================================= */}
-
-                    {!loading &&
-                        !error &&
-                        filteredComplaints.length > 0 && (
-
-                            <div className="results-info">
-
-                                Showing{" "}
-
-                                {startIndex + 1}
-
-                                {" - "}
-
-                                {Math.min(
-                                    startIndex +
-                                    itemsPerPage,
-                                    filteredComplaints.length
-                                )}
-
-                                {" of "}
-
-                                {filteredComplaints.length}
-
-                                {" complaints"}
-
-                            </div>
-
-                        )}
-
-
-                    {/* =================================================
-                        LOADING
-                    ================================================= */}
-
-                    {loading && (
-
-                        <div className="empty-state">
-
-                            Loading complaints...
-
-                        </div>
-
-                    )}
-
-
-                    {/* =================================================
-                        ERROR
-                    ================================================= */}
-
-                    {!loading &&
-                        error && (
-
-                            <div className="error-state">
-
-                                {error}
-
-                            </div>
-
-                        )}
-
-
-                    {/* =================================================
-                        EMPTY
-                    ================================================= */}
-
-                    {!loading &&
-                        !error &&
-                        filteredComplaints.length === 0 && (
-
-                            <div className="empty-state">
-
-                                <div className="empty-icon">
-                                    ✓
-                                </div>
-
-
-                                <h3>
-
-                                    No complaints found
-
-                                </h3>
-
-
-                                <p>
-
-                                    {role === "CITIZEN"
-                                        ? "You have not submitted any complaints yet."
-                                        : role === "EMPLOYEE"
-                                            ? "No complaints have been assigned to you."
-                                            : "Try changing your filters or search."}
-
-                                </p>
-
-                            </div>
-
-                        )}
-
-
-                    {/* =================================================
-                        TABLE
-                    ================================================= */}
-
-                    {!loading &&
-                        !error &&
-                        paginatedComplaints.length > 0 && (
-
-                            <>
-
-
-                                <div className="complaints-table">
-
-
-                                    {/* TABLE HEADER */}
-
-                                    <div className="table-header">
-
-                                        <span>
-                                            ID
-                                        </span>
-
-                                        <span>
-                                            Complaint
-                                        </span>
-
-                                        <span>
-                                            Category
-                                        </span>
-
-                                        <span>
-                                            Status
-                                        </span>
-
-                                    </div>
-
-
-                                    {/* TABLE ROWS */}
-
-                                    {paginatedComplaints.map(
-                                        (complaint) => (
-
-                                            <div
-                                                className="table-row"
-                                                key={
-                                                    complaint.id
-                                                }
-                                                onClick={() =>
-                                                    navigate(
-                                                        `/complaints/${complaint.id}`
-                                                    )
-                                                }
-                                            >
-
-
-                                                {/* ID */}
-
-                                                <span>
-
-                                                    #
-
-                                                    {
-                                                        complaint.id
-                                                    }
-
-                                                </span>
-
-
-                                                {/* COMPLAINT */}
-
-                                                <div>
-
-                                                    <strong>
-
-                                                        {
-                                                            complaint.title
-                                                        }
-
-                                                    </strong>
-
-
-                                                    <small>
-
-                                                        {
-                                                            complaint.description
-                                                        }
-
-                                                    </small>
-
-                                                </div>
-
-
-                                                {/* CATEGORY */}
-
-                                                <span>
-
-                                                    {
-                                                        complaint.category ||
-                                                        "-"
-                                                    }
-
-                                                </span>
-
-
-                                                {/* STATUS */}
-
-                                                <span
-                                                    className={
-                                                        getStatusClass(
-                                                            complaint.status
-                                                        )
-                                                    }
-                                                >
-
-                                                    {
-                                                        complaint.status ||
-                                                        "PENDING"
-                                                    }
-
-                                                </span>
-
-
-                                            </div>
-
-                                        )
-                                    )}
-
-                                </div>
-
-
-                                {/* =================================================
-                                    PAGINATION
-                                ================================================= */}
-
-                                {totalPages > 1 && (
-
-                                    <div className="pagination">
-
-
-                                        {/* PREVIOUS */}
-
-                                        <button
-                                            className="pagination-button"
-                                            disabled={
-                                                currentPage === 1
-                                            }
-                                            onClick={() =>
-                                                goToPage(
-                                                    currentPage - 1
-                                                )
-                                            }
-                                        >
-
-                                            ← Previous
-
-                                        </button>
-
-
-                                        {/* PAGE NUMBERS */}
-
-                                        <div className="page-numbers">
-
-                                            {pageNumbers.map(
-                                                (page) => (
-
-                                                    <button
-                                                        key={page}
-                                                        className={
-                                                            `pagination-number ${
-                                                                currentPage === page
-                                                                    ? "active"
-                                                                    : ""
-                                                            }`
-                                                        }
-                                                        onClick={() =>
-                                                            goToPage(
-                                                                page
-                                                            )
-                                                        }
-                                                    >
-
-                                                        {page}
-
-                                                    </button>
-
-                                                )
-                                            )}
-
-                                        </div>
-
-
-                                        {/* NEXT */}
-
-                                        <button
-                                            className="pagination-button"
-                                            disabled={
-                                                currentPage ===
-                                                totalPages
-                                            }
-                                            onClick={() =>
-                                                goToPage(
-                                                    currentPage + 1
-                                                )
-                                            }
-                                        >
-
-                                            Next →
-
-                                        </button>
-
-                                    </div>
-
-                                )}
-
-                            </>
-
-                        )}
-
-                </div>
-
-            </main>
-
-        </div>
-    );
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
+      </div>
+    </AppLayout>
+  );
 }
-
 
 export default Complaints;

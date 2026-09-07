@@ -36,17 +36,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String requestUri = request.getRequestURI();
 
-        System.out.println("====================================");
-        System.out.println("Request URI: " + requestUri);
-
         // =====================================================
         // SKIP JWT FOR LOGIN AND REGISTER
         // =====================================================
 
         if (requestUri.equals("/api/auth/login")
                 || requestUri.equals("/api/auth/register")) {
-
-            System.out.println("Skipping JWT authentication for auth endpoint");
 
             filterChain.doFilter(request, response);
             return;
@@ -59,18 +54,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String authHeader =
                 request.getHeader("Authorization");
 
-        System.out.println(
-                "Authorization Header: [" + authHeader + "]"
-        );
-
         // =====================================================
         // NO TOKEN
         // =====================================================
 
         if (authHeader == null
                 || !authHeader.startsWith("Bearer ")) {
-
-            System.out.println("No JWT token found");
 
             filterChain.doFilter(request, response);
             return;
@@ -82,21 +71,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String jwt = authHeader.substring(7);
 
-        System.out.println("JWT Token received");
-
         String email;
 
         try {
 
             email = jwtService.extractUsername(jwt);
 
-            System.out.println("JWT Email: " + email);
-
         } catch (Exception e) {
-
-            System.out.println(
-                    "JWT Parsing Error: " + e.getMessage()
-            );
 
             filterChain.doFilter(request, response);
             return;
@@ -123,7 +104,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
-                                    userDetails,
+                                     userDetails,
                                     null,
                                     userDetails.getAuthorities()
                             );
@@ -137,24 +118,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             .getContext()
                             .setAuthentication(authToken);
 
-                    System.out.println(
-                            "JWT Authentication successful for: "
-                                    + email
-                    );
-
-                } else {
-
-                    System.out.println(
-                            "JWT token is invalid"
-                    );
                 }
 
             } catch (Exception e) {
-
-                System.out.println(
-                        "Authentication Error: "
-                                + e.getMessage()
-                );
+                // Ignore authentication failures; unauthenticated context will be rejected by filter chain
             }
         }
 

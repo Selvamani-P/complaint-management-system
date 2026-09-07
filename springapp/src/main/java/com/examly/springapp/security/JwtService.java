@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -15,14 +17,20 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    private final String secret = System.getenv("JWT_SECRET");
+    @Value("${jwt.secret:}")
+    private String secret;
 
-    private final Key key;
+    private Key key;
 
-    public JwtService() {
+    @PostConstruct
+    public void init() {
+        if (secret == null || secret.trim().isEmpty()) {
+            secret = System.getenv("JWT_SECRET");
+        }
+
         if (secret == null || secret.length() < 32) {
             throw new IllegalStateException(
-                    "JWT_SECRET environment variable must be at least 32 characters long"
+                    "JWT_SECRET environment variable or jwt.secret property must be at least 32 characters long"
             );
         }
 

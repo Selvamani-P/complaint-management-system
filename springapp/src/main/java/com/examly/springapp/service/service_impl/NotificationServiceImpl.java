@@ -6,7 +6,7 @@ import com.examly.springapp.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,10 +23,10 @@ public class NotificationServiceImpl
     }
 
     @Override
-    public Optional<Notification> getNotificationsByUser(
+    public List<Notification> getNotificationsByUser(
             Long userId) {
 
-        return notificationRepository.findById(userId);
+        return notificationRepository.findByUserId(userId);
     }
 
     @Override

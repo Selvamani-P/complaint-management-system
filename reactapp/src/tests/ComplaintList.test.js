@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import ComplaintList from '../components/ComplaintList';
 import { MemoryRouter } from 'react-router-dom';
 import axios from 'axios';

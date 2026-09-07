@@ -34,7 +34,7 @@ public  class UserServiceImpl implements UserService {
 
     @Override
     public List<User> getAllCitizens() {
-        return userRepository.findById(Role.CITIZEN);
+        return userRepository.findByRole(Role.CITIZEN);
     }
 
     @Override

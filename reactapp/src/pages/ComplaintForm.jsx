@@ -1,417 +1,209 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
-import api from "../services/api";
-
-function ComplaintForm() {
-
-    const navigate = useNavigate();
-
-    const [title, setTitle] = useState("");
-    const [description, setDescription] = useState("");
-    const [category, setCategory] = useState("");
-
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
-
-
-    // =====================================================
-    // SUBMIT COMPLAINT
-    // =====================================================
-
-    const handleSubmit = async (e) => {
-
-        e.preventDefault();
-
-        setError("");
-        setSuccess("");
-
-
-        // Get logged-in user's email
-        const email =
-            localStorage.getItem("email");
-
-
-        // Check login
-        if (!email) {
-
-            setError(
-                "User information not found. Please login again."
-            );
-
-            return;
-        }
-
-
-        // Basic validation
-        if (!title.trim()) {
-
-            setError(
-                "Please enter a complaint title."
-            );
-
-            return;
-        }
-
-
-        if (!description.trim()) {
-
-            setError(
-                "Please enter a complaint description."
-            );
-
-            return;
-        }
-
-
-        if (!category) {
-
-            setError(
-                "Please select a category."
-            );
-
-            return;
-        }
-
-
-        try {
-
-            setLoading(true);
-
-
-            // =================================================
-            // SEND COMPLAINT TO BACKEND
-            // =================================================
-
-            const response = await api.post(
-                "/complaints",
-                {
-                    title: title.trim(),
-                    description: description.trim(),
-                    category: category,
-                    email: email
-                }
-            );
-
-
-            console.log(
-                "Complaint created:",
-                response.data
-            );
-
-
-            setSuccess(
-                "Complaint submitted successfully!"
-            );
-
-
-            // Clear form
-            setTitle("");
-            setDescription("");
-            setCategory("");
-
-
-            // Go to complaints page
-            setTimeout(() => {
-
-                navigate("/complaints");
-
-            }, 800);
-
-
-        } catch (err) {
-
-            console.error(
-                "Complaint creation error:",
-                err
-            );
-
-
-            if (err.response) {
-
-                if (
-                    err.response.status === 403
-                ) {
-
-                    setError(
-                        "You are not authorized to create a complaint."
-                    );
-
-                } else if (
-                    err.response.status === 400
-                ) {
-
-                    setError(
-                        err.response.data?.message ||
-                        err.response.data ||
-                        "Invalid complaint details."
-                    );
-
-                } else {
-
-                    setError(
-                        err.response.data?.message ||
-                        err.response.data ||
-                        "Unable to submit complaint."
-                    );
-                }
-
-            } else {
-
-                setError(
-                    "Unable to connect to the server."
-                );
-            }
-
-        } finally {
-
-            setLoading(false);
-
-        }
-    };
-
-
-    // =====================================================
-    // CANCEL
-    // =====================================================
-
-    const handleCancel = () => {
-
-        navigate("/complaints");
-
-    };
-
-
-    // =====================================================
-    // UI
-    // =====================================================
-
-    return (
-
-        <div className="dashboard-layout">
-
-            <Sidebar />
-
-
-            <main className="main-content">
-
-
-                {/* =================================================
-                    HEADER
-                ================================================= */}
-
-                <div className="topbar">
-
-                    <div>
-
-                        <h1 className="welcome-title">
-                            New Complaint
-                        </h1>
-
-                        <p className="welcome-text">
-                            Submit a new complaint for review.
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                {/* =================================================
-                    FORM CARD
-                ================================================= */}
-
-                <div className="form-card">
-
-
-                    <form
-                        onSubmit={handleSubmit}
-                    >
-
-
-                        {/* =================================================
-                            TITLE
-                        ================================================= */}
-
-                        <div className="form-group">
-
-                            <label>
-                                Complaint Title
-                            </label>
-
-                            <input
-                                type="text"
-                                placeholder="Enter complaint title"
-                                value={title}
-                                onChange={(e) =>
-                                    setTitle(
-                                        e.target.value
-                                    )
-                                }
-                                disabled={loading}
-                            />
-
-                        </div>
-
-
-                        {/* =================================================
-                            CATEGORY
-                        ================================================= */}
-
-                        <div className="form-group">
-
-                            <label>
-                                Category
-                            </label>
-
-                            <select
-                                value={category}
-                                onChange={(e) =>
-                                    setCategory(
-                                        e.target.value
-                                    )
-                                }
-                                disabled={loading}
-                            >
-
-                                <option value="">
-                                    Select category
-                                </option>
-
-                                <option value="Water">
-                                    Water
-                                </option>
-
-                                <option value="Electricity">
-                                    Electricity
-                                </option>
-
-                                <option value="Road">
-                                    Road
-                                </option>
-
-                                <option value="Sanitation">
-                                    Sanitation
-                                </option>
-
-                                <option value="Garbage">
-                                    Garbage
-                                </option>
-
-                                <option value="Street Light">
-                                    Street Light
-                                </option>
-
-                                <option value="Public Safety">
-                                    Public Safety
-                                </option>
-
-                                <option value="Other">
-                                    Other
-                                </option>
-
-                            </select>
-
-                        </div>
-
-
-                        {/* =================================================
-                            DESCRIPTION
-                        ================================================= */}
-
-                        <div className="form-group">
-
-                            <label>
-                                Description
-                            </label>
-
-                            <textarea
-                                placeholder="Describe your complaint in detail..."
-                                value={description}
-                                onChange={(e) =>
-                                    setDescription(
-                                        e.target.value
-                                    )
-                                }
-                                rows="6"
-                                disabled={loading}
-                            />
-
-                        </div>
-
-
-                        {/* =================================================
-                            SUCCESS
-                        ================================================= */}
-
-                        {success && (
-
-                            <div className="success-state">
-
-                                {success}
-
-                            </div>
-
-                        )}
-
-
-                        {/* =================================================
-                            ERROR
-                        ================================================= */}
-
-                        {error && (
-
-                            <div className="error-state">
-
-                                {error}
-
-                            </div>
-
-                        )}
-
-
-                        {/* =================================================
-                            BUTTONS
-                        ================================================= */}
-
-                        <div className="form-actions">
-
-                            <button
-                                type="button"
-                                className="secondary-button"
-                                onClick={
-                                    handleCancel
-                                }
-                                disabled={loading}
-                            >
-                                Cancel
-                            </button>
-
-
-                            <button
-                                type="submit"
-                                className="primary-button"
-                                disabled={loading}
-                            >
-
-                                {loading
-                                    ? "Submitting..."
-                                    : "Submit Complaint"}
-
-                            </button>
-
-                        </div>
-
-
-                    </form>
-
-                </div>
-
-            </main>
-
-        </div>
-    );
+import { useDispatch } from "react-redux";
+import AppLayout from "../components/layout/AppLayout";
+import Button from "../components/common/Button";
+import Icon from "../components/common/Icon";
+import complaintService from "../services/complaintService";
+import { addToast } from "../store/slices/uiSlice";
+import { getErrorMessage } from "../services/api";
+
+export function ComplaintFormPage() {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const [formData, setFormData] = useState({
+    title: "",
+    category: "",
+    description: ""
+  });
+
+  const [clientErrors, setClientErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState("");
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (clientErrors[name]) {
+      setClientErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const validate = () => {
+    const errors = {};
+
+    if (!formData.title.trim()) {
+      errors.title = "Please enter a complaint title.";
+    } else if (formData.title.trim().length < 3) {
+      errors.title = "Title must be at least 3 characters.";
+    }
+
+    if (!formData.category) {
+      errors.category = "Please select an applicable category.";
+    }
+
+    if (!formData.description.trim()) {
+      errors.description = "Please describe the problem in detail.";
+    } else if (formData.description.trim().length < 10) {
+      errors.description = "Description must be at least 10 characters.";
+    }
+
+    setClientErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setServerError("");
+
+    const email = localStorage.getItem("email");
+    if (!email) {
+      setServerError("User session not found. Please log in again.");
+      return;
+    }
+
+    if (!validate()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await complaintService.createComplaint({
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        category: formData.category,
+        email: email
+      });
+
+      dispatch(addToast({ message: "Complaint submitted successfully!", type: "success" }));
+      navigate("/complaints");
+    } catch (err) {
+      setServerError(getErrorMessage(err, "Failed to submit complaint. Please check your details."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AppLayout
+      title="Submit New Complaint"
+      subtitle="Provide clear details to help us investigate and resolve the issue quickly."
+      rightAction={
+        <Button
+          variant="secondary"
+          icon={<Icon name="arrowLeft" size={15} />}
+          onClick={() => navigate("/complaints")}
+        >
+          Cancel
+        </Button>
+      }
+    >
+      <div className="form-card">
+        {serverError && (
+          <div className="error-state" role="alert" style={{ marginBottom: "20px" }}>
+            {serverError}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate>
+          {/* TITLE */}
+          <div className="form-group">
+            <label htmlFor="complaint-title">
+              Complaint Subject / Title <span className="required-star">*</span>
+            </label>
+            <input
+              id="complaint-title"
+              name="title"
+              type="text"
+              className={`form-input ${clientErrors.title ? "input-error" : ""}`}
+              placeholder="e.g. Street light malfunctioning near block B"
+              value={formData.title}
+              onChange={handleChange}
+              disabled={loading}
+              required
+            />
+            {clientErrors.title && (
+              <span className="form-error-msg">{clientErrors.title}</span>
+            )}
+          </div>
+
+          {/* CATEGORY */}
+          <div className="form-group">
+            <label htmlFor="complaint-category">
+              Category <span className="required-star">*</span>
+            </label>
+            <select
+              id="complaint-category"
+              name="category"
+              className={`form-select ${clientErrors.category ? "input-error" : ""}`}
+              value={formData.category}
+              onChange={handleChange}
+              disabled={loading}
+              required
+            >
+              <option value="">-- Choose Category --</option>
+              <option value="INFRASTRUCTURE">Infrastructure</option>
+              <option value="SERVICE">Service</option>
+              <option value="PERSONNEL">Personnel</option>
+              <option value="Water">Water Supply</option>
+              <option value="Electricity">Electricity & Power</option>
+              <option value="Road">Roads & Pathways</option>
+              <option value="Sanitation">Sanitation & Drainage</option>
+              <option value="Garbage">Garbage & Waste</option>
+              <option value="Street Light">Street Lighting</option>
+              <option value="Public Safety">Public Safety</option>
+              <option value="Other">Other Issues</option>
+            </select>
+            {clientErrors.category && (
+              <span className="form-error-msg">{clientErrors.category}</span>
+            )}
+          </div>
+
+          {/* DESCRIPTION */}
+          <div className="form-group">
+            <label htmlFor="complaint-description">
+              Detailed Description <span className="required-star">*</span>
+            </label>
+            <textarea
+              id="complaint-description"
+              name="description"
+              rows={6}
+              className={`form-textarea ${clientErrors.description ? "input-error" : ""}`}
+              placeholder="Provide exact location, timeline, and any relevant details to expedite resolution..."
+              value={formData.description}
+              onChange={handleChange}
+              disabled={loading}
+              required
+            />
+            {clientErrors.description && (
+              <span className="form-error-msg">{clientErrors.description}</span>
+            )}
+          </div>
+
+          {/* ACTION BUTTONS */}
+          <div className="form-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => navigate("/complaints")}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={loading}
+              disabled={loading}
+            >
+              Submit Complaint
+            </Button>
+          </div>
+        </form>
+      </div>
+    </AppLayout>
+  );
 }
 
-export default ComplaintForm;
+export default ComplaintFormPage;

@@ -1,4 +1,3 @@
-@"
 # React
 reactapp/node_modules/
 reactapp/build/
@@ -7,6 +6,9 @@ reactapp/build/
 .env
 .env.*
 !.env.example
+reactapp/.env
+reactapp/.env.*
+!reactapp/.env.example
 
 # Spring Boot
 springapp/target/
@@ -22,4 +24,6 @@ Thumbs.db
 
 # Logs
 *.log
-"@ | Set-Content .gitignore
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

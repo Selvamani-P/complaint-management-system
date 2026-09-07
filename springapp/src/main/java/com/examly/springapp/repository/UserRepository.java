@@ -15,6 +15,4 @@ public interface UserRepository
     boolean existsByEmail(String email);
 
     List<User> findByRole(Role role);
-
-    List<User> findById(Role role);
 }

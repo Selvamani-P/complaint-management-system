@@ -1,12 +1,18 @@
 package com.examly.springapp.controller;
 
 import com.examly.springapp.dto.complaint.ComplaintRequest;
+import com.examly.springapp.exception.ResourceNotFoundException;
 import com.examly.springapp.model.Complaint;
+import com.examly.springapp.model.User;
+import com.examly.springapp.repository.ComplaintRepository;
+import com.examly.springapp.repository.UserRepository;
 import com.examly.springapp.service.ComplaintService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -16,10 +22,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/complaints")
 @RequiredArgsConstructor
-@CrossOrigin("*")
 public class ComplaintController {
 
     private final ComplaintService complaintService;
+    private final ComplaintRepository complaintRepository;
+    private final UserRepository userRepository;
 
     // =====================================================
     // CREATE COMPLAINT
@@ -29,7 +36,7 @@ public class ComplaintController {
     @PostMapping
     @PreAuthorize("hasRole('CITIZEN')")
     public ResponseEntity<Complaint> createComplaint(
-            @RequestBody ComplaintRequest request,
+            @Valid @RequestBody ComplaintRequest request,
             Authentication authentication
     ) {
 
@@ -54,7 +61,21 @@ public class ComplaintController {
     @PreAuthorize(
             "hasAnyRole('ADMIN', 'EMPLOYEE', 'CITIZEN')"
     )
-    public ResponseEntity<List<Complaint>> getAllComplaints() {
+    public ResponseEntity<List<Complaint>> getAllComplaints(
+            Authentication authentication
+    ) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isEmployee = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_EMPLOYEE"));
+
+        if (!isAdmin && !isEmployee) {
+            // Citizen: return only their own complaints
+            String userEmail = authentication.getName();
+            User citizen = userRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userEmail));
+            return ResponseEntity.ok(complaintRepository.findByComplainant(citizen));
+        }
 
         return ResponseEntity.ok(
                 complaintService.getAllComplaints()
@@ -62,7 +83,7 @@ public class ComplaintController {
     }
 
     // =====================================================
-    // GET COMPLAINT BY ID
+    // GET COMPLAINT BY ID (IDOR PROTECTED)
     // =====================================================
 
     @GetMapping("/{id}")
@@ -70,12 +91,25 @@ public class ComplaintController {
             "hasAnyRole('ADMIN', 'EMPLOYEE', 'CITIZEN')"
     )
     public ResponseEntity<Complaint> getComplaintById(
-            @PathVariable Long id
+            @PathVariable Long id,
+            Authentication authentication
     ) {
+        Complaint complaint = complaintService.getComplaintById(id);
 
-        return ResponseEntity.ok(
-                complaintService.getComplaintById(id)
-        );
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isEmployee = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_EMPLOYEE"));
+
+        if (!isAdmin && !isEmployee) {
+            // Citizen: can only view own complaint
+            if (complaint.getComplainant() == null ||
+                    !complaint.getComplainant().getEmail().equalsIgnoreCase(authentication.getName())) {
+                throw new AccessDeniedException("You do not have permission to view this complaint");
+            }
+        }
+
+        return ResponseEntity.ok(complaint);
     }
 
     // =====================================================
@@ -103,7 +137,7 @@ public class ComplaintController {
 
     // =====================================================
     // UPDATE STATUS
-    // ADMIN / EMPLOYEE
+    // ADMIN / EMPLOYEE (EMPLOYEE CAN ONLY UPDATE ASSIGNED)
     // =====================================================
 
     @PutMapping("/{complaintId}/status")
@@ -112,8 +146,20 @@ public class ComplaintController {
     )
     public ResponseEntity<Complaint> updateStatus(
             @PathVariable Long complaintId,
-            @RequestParam String status
+            @RequestParam String status,
+            Authentication authentication
     ) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin) {
+            // Employee check
+            Complaint complaint = complaintService.getComplaintById(complaintId);
+            if (complaint.getAssignedEmployee() == null ||
+                    !complaint.getAssignedEmployee().getEmail().equalsIgnoreCase(authentication.getName())) {
+                throw new AccessDeniedException("Employees can only update complaints assigned to them");
+            }
+        }
 
         Complaint complaint =
                 complaintService.updateStatus(

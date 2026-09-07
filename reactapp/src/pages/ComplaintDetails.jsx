@@ -1,876 +1,302 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
-import api from "../services/api";
+import { useDispatch } from "react-redux";
+import AppLayout from "../components/layout/AppLayout";
+import StatusBadge from "../components/complaint/StatusBadge";
+import PriorityBadge from "../components/complaint/PriorityBadge";
+import Button from "../components/common/Button";
+import Icon from "../components/common/Icon";
+import ConfirmDialog from "../components/common/ConfirmDialog";
+import complaintService from "../services/complaintService";
+import userService from "../services/userService";
+import { addToast } from "../store/slices/uiSlice";
+import { getErrorMessage } from "../services/api";
 
-function ComplaintDetails() {
+export function ComplaintDetails() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
-    const { id } = useParams();
-    const navigate = useNavigate();
+  const role = (localStorage.getItem("role") || "CITIZEN").toUpperCase();
 
-    const role =
-        localStorage.getItem("role") || "CITIZEN";
+  const [complaint, setComplaint] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
 
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
 
-    // =====================================================
-    // STATE
-    // =====================================================
+  useEffect(() => {
+    let isMounted = true;
 
-    const [complaint, setComplaint] = useState(null);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    const [employees, setEmployees] = useState([]);
+        const data = await complaintService.getComplaintById(id);
+        if (!isMounted) return;
 
-    const [selectedEmployee, setSelectedEmployee] =
-        useState("");
-
-    const [selectedStatus, setSelectedStatus] =
-        useState("");
-
-    const [loading, setLoading] =
-        useState(true);
-
-    const [actionLoading, setActionLoading] =
-        useState(false);
-
-    const [error, setError] =
-        useState("");
-
-    const [message, setMessage] =
-        useState("");
-
-
-    // =====================================================
-    // LOAD COMPLAINT
-    // =====================================================
-
-    useEffect(() => {
-        loadComplaint();
-    }, [id]);
-
-
-    const loadComplaint = async () => {
-
-        try {
-
-            setLoading(true);
-            setError("");
-            setMessage("");
-
-            const response =
-                await api.get(`/complaints/${id}`);
-
-            const data = response.data;
-
-            setComplaint(data);
-
-
-            // Set current status
-            setSelectedStatus(
-                data.status || "PENDING"
-            );
-
-
-            // IMPORTANT:
-            // If complaint already has an employee,
-            // automatically select that employee
-            // in the dropdown.
-
-            setSelectedEmployee(
-                data.assignedEmployee?.id
-                    ? String(data.assignedEmployee.id)
-                    : ""
-            );
-
-
-        } catch (err) {
-
-            console.error(
-                "Complaint loading error:",
-                err
-            );
-
-            if (err.response?.status === 404) {
-
-                setError(
-                    "Complaint not found."
-                );
-
-            } else {
-
-                setError(
-                    "Unable to load complaint."
-                );
-            }
-
-        } finally {
-
-            setLoading(false);
-
-        }
-    };
-
-
-    // =====================================================
-    // LOAD EMPLOYEES
-    // ADMIN ONLY
-    // =====================================================
-
-    useEffect(() => {
+        setComplaint(data);
+        setSelectedStatus(data.status || "PENDING");
+        setSelectedEmployee(data.assignedEmployee?.id ? String(data.assignedEmployee.id) : "");
 
         if (role === "ADMIN") {
-            loadEmployees();
+          try {
+            const empList = await userService.getEmployees();
+            if (isMounted) {
+              setEmployees(empList);
+            }
+          } catch (empErr) {
+            console.warn("Could not fetch employees:", empErr);
+          }
         }
-
-    }, [role]);
-
-
-    const loadEmployees = async () => {
-
-        try {
-
-            const response =
-                await api.get("/users/employees");
-
-            const employeeList =
-                Array.isArray(response.data)
-                    ? response.data
-                    : [];
-
-            setEmployees(employeeList);
-
-        } catch (err) {
-
-            console.error(
-                "Employee loading error:",
-                err
-            );
-
-            setMessage(
-                "Unable to load employees."
-            );
+      } catch (err) {
+        if (isMounted) {
+          setError(getErrorMessage(err, "Unable to load complaint details."));
         }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     };
 
-
-    // =====================================================
-    // ASSIGN EMPLOYEE
-    // =====================================================
-
-    const handleAssign = async () => {
-
-        if (!selectedEmployee) {
-
-            setMessage(
-                "Please select an employee."
-            );
-
-            return;
-        }
-
-
-        try {
-
-            setActionLoading(true);
-            setMessage("");
-            setError("");
-
-
-            const response =
-                await api.put(
-                    `/complaints/${id}/assign/${selectedEmployee}`
-                );
-
-
-            const updatedComplaint =
-                response.data;
-
-
-            setComplaint(
-                updatedComplaint
-            );
-
-
-            // Keep dropdown showing assigned employee
-            setSelectedEmployee(
-                updatedComplaint.assignedEmployee?.id
-                    ? String(
-                        updatedComplaint.assignedEmployee.id
-                    )
-                    : String(selectedEmployee)
-            );
-
-
-            setSelectedStatus(
-                updatedComplaint.status ||
-                "ASSIGNED"
-            );
-
-
-            setMessage(
-                "Complaint assigned successfully."
-            );
-
-
-        } catch (err) {
-
-            console.error(
-                "Assignment error:",
-                err
-            );
-
-
-            setMessage(
-                err.response?.data?.message ||
-                err.response?.data ||
-                "Unable to assign complaint."
-            );
-
-        } finally {
-
-            setActionLoading(false);
-
-        }
-    };
-
-
-    // =====================================================
-    // UPDATE STATUS
-    // =====================================================
-
-    const handleStatusUpdate = async () => {
-
-        if (!selectedStatus) {
-            return;
-        }
-
-
-        try {
-
-            setActionLoading(true);
-            setMessage("");
-            setError("");
-
-
-            const response =
-                await api.put(
-                    `/complaints/${id}/status`,
-                    null,
-                    {
-                        params: {
-                            status: selectedStatus
-                        }
-                    }
-                );
-
-
-            const updatedComplaint =
-                response.data;
-
-
-            setComplaint(
-                updatedComplaint
-            );
-
-
-            setSelectedStatus(
-                updatedComplaint.status ||
-                selectedStatus
-            );
-
-
-            // Keep employee selected after status update
-            setSelectedEmployee(
-                updatedComplaint.assignedEmployee?.id
-                    ? String(
-                        updatedComplaint.assignedEmployee.id
-                    )
-                    : selectedEmployee
-            );
-
-
-            setMessage(
-                "Complaint status updated successfully."
-            );
-
-
-        } catch (err) {
-
-            console.error(
-                "Status update error:",
-                err
-            );
-
-
-            setMessage(
-                err.response?.data?.message ||
-                err.response?.data ||
-                "Unable to update status."
-            );
-
-        } finally {
-
-            setActionLoading(false);
-
-        }
-    };
-
-
-    // =====================================================
-    // STATUS CLASS
-    // =====================================================
-
-    const getStatusClass = (status) => {
-
-        const value =
-            status?.toUpperCase();
-
-
-        if (value === "RESOLVED") {
-
-            return "status status-resolved";
-        }
-
-
-        if (
-            value === "IN_PROGRESS" ||
-            value === "IN PROGRESS"
-        ) {
-
-            return "status status-progress";
-        }
-
-
-        if (value === "ASSIGNED") {
-
-            return "status status-progress";
-        }
-
-
-        if (value === "CLOSED") {
-
-            return "status status-resolved";
-        }
-
-
-        return "status status-pending";
-    };
-
-
-    // =====================================================
-    // LOADING
-    // =====================================================
-
-    if (loading) {
-
-        return (
-
-            <div className="dashboard-layout">
-
-                <Sidebar />
-
-                <main className="main-content">
-
-                    <div className="content-card">
-
-                        <div className="empty-state">
-
-                            Loading complaint...
-
-                        </div>
-
-                    </div>
-
-                </main>
-
-            </div>
-        );
+    if (id) {
+      loadData();
     }
 
+    return () => {
+      isMounted = false;
+    };
+  }, [id, role]);
 
-    // =====================================================
-    // ERROR
-    // =====================================================
-
-    if (error || !complaint) {
-
-        return (
-
-            <div className="dashboard-layout">
-
-                <Sidebar />
-
-                <main className="main-content">
-
-                    <div className="content-card">
-
-                        <div className="error-state">
-
-                            {error ||
-                                "Complaint not found."}
-
-                        </div>
-
-
-                        <button
-                            className="secondary-button"
-                            onClick={() =>
-                                navigate(
-                                    "/complaints"
-                                )
-                            }
-                        >
-
-                            ← Back to Complaints
-
-                        </button>
-
-                    </div>
-
-                </main>
-
-            </div>
-        );
+  const handleAssign = async () => {
+    if (!selectedEmployee) {
+      dispatch(addToast({ message: "Please select an employee first.", type: "error" }));
+      return;
     }
 
+    try {
+      setActionLoading(true);
+      const updated = await complaintService.assignComplaint(id, selectedEmployee);
+      setComplaint(updated);
+      setSelectedStatus(updated.status || "ASSIGNED");
+      dispatch(addToast({ message: "Employee assigned successfully!", type: "success" }));
+    } catch (err) {
+      dispatch(addToast({ message: getErrorMessage(err, "Failed to assign employee."), type: "error" }));
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
-    // =====================================================
-    // MAIN UI
-    // =====================================================
+  const confirmStatusUpdate = async () => {
+    setStatusModalOpen(false);
+    if (!selectedStatus) return;
 
+    try {
+      setActionLoading(true);
+      const updated = await complaintService.updateStatus(id, selectedStatus);
+      setComplaint(updated);
+      dispatch(addToast({ message: `Status updated to ${selectedStatus}!`, type: "success" }));
+    } catch (err) {
+      dispatch(addToast({ message: getErrorMessage(err, "Failed to update status."), type: "error" }));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  if (loading) {
     return (
-
-        <div className="dashboard-layout">
-
-            <Sidebar />
-
-
-            <main className="main-content">
-
-
-                {/* =================================================
-                    HEADER
-                ================================================= */}
-
-                <div className="topbar">
-
-                    <div>
-
-                        <h1 className="welcome-title">
-
-                            Complaint Details
-
-                        </h1>
-
-
-                        <p className="welcome-text">
-
-                            View and manage complaint
-                            information.
-
-                        </p>
-
-                    </div>
-
-
-                    <button
-                        className="secondary-button"
-                        onClick={() =>
-                            navigate(
-                                "/complaints"
-                            )
-                        }
-                    >
-
-                        ← Back
-
-                    </button>
-
-                </div>
-
-
-                {/* =================================================
-                    COMPLAINT CARD
-                ================================================= */}
-
-                <div className="content-card">
-
-
-                    {/* =================================================
-                        TITLE + STATUS
-                    ================================================= */}
-
-                    <div className="complaint-details-header">
-
-                        <div>
-
-                            <span className="complaint-id">
-
-                                Complaint #{complaint.id}
-
-                            </span>
-
-
-                            <h2>
-
-                                {complaint.title}
-
-                            </h2>
-
-                        </div>
-
-
-                        <span
-                            className={getStatusClass(
-                                complaint.status
-                            )}
-                        >
-
-                            {complaint.status ||
-                                "PENDING"}
-
-                        </span>
-
-                    </div>
-
-
-                    {/* =================================================
-                        DETAILS
-                    ================================================= */}
-
-                    <div className="profile-details">
-
-
-                        {/* CATEGORY */}
-
-                        <div className="profile-detail">
-
-                            <span>
-                                Category
-                            </span>
-
-                            <strong>
-
-                                {complaint.category ||
-                                    "-"}
-
-                            </strong>
-
-                        </div>
-
-
-                        {/* SUBMITTED DATE */}
-
-                        <div className="profile-detail">
-
-                            <span>
-                                Submitted At
-                            </span>
-
-                            <strong>
-
-                                {complaint.submittedAt
-                                    ? new Date(
-                                        complaint.submittedAt
-                                    ).toLocaleString()
-                                    : "-"}
-
-                            </strong>
-
-                        </div>
-
-
-                        {/* COMPLAINANT */}
-
-                        <div className="profile-detail">
-
-                            <span>
-                                Complainant
-                            </span>
-
-                            <strong>
-
-                                {complaint.complainant?.name ||
-                                    "-"}
-
-                            </strong>
-
-                        </div>
-
-
-                        {/* COMPLAINANT EMAIL */}
-
-                        <div className="profile-detail">
-
-                            <span>
-                                Complainant Email
-                            </span>
-
-                            <strong>
-
-                                {complaint.complainant?.email ||
-                                    "-"}
-
-                            </strong>
-
-                        </div>
-
-
-                        {/* ASSIGNED EMPLOYEE */}
-
-                        <div className="profile-detail">
-
-                            <span>
-                                Assigned Employee
-                            </span>
-
-                            <strong>
-
-                                {complaint.assignedEmployee?.name ||
-                                    "Not Assigned"}
-
-                            </strong>
-
-                        </div>
-
-
-                        {/* EMPLOYEE EMAIL */}
-
-                        <div className="profile-detail">
-
-                            <span>
-                                Employee Email
-                            </span>
-
-                            <strong>
-
-                                {complaint.assignedEmployee?.email ||
-                                    "-"}
-
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-
-                    {/* =================================================
-                        DESCRIPTION
-                    ================================================= */}
-
-                    <div className="complaint-description">
-
-                        <h3>
-                            Description
-                        </h3>
-
-
-                        <p>
-
-                            {complaint.description}
-
-                        </p>
-
-                    </div>
-
-
-                    {/* =================================================
-                        ADMIN ASSIGNMENT
-                    ================================================= */}
-
-                    {role === "ADMIN" && (
-
-                        <div className="action-section">
-
-                            <h3>
-                                Assign Employee
-                            </h3>
-
-
-                            <div className="action-row">
-
-
-                                <select
-                                    value={
-                                        selectedEmployee
-                                    }
-                                    onChange={(e) =>
-                                        setSelectedEmployee(
-                                            e.target.value
-                                        )
-                                    }
-                                    className="form-select"
-                                    disabled={
-                                        actionLoading
-                                    }
-                                >
-
-                                    <option value="">
-
-                                        Select Employee
-
-                                    </option>
-
-
-                                    {employees.map(
-                                        (employee) => (
-
-                                            <option
-                                                key={
-                                                    employee.id
-                                                }
-                                                value={
-                                                    employee.id
-                                                }
-                                            >
-
-                                                {employee.name}
-                                                {" - "}
-                                                {employee.email}
-
-                                            </option>
-
-                                        )
-                                    )}
-
-                                </select>
-
-
-                                <button
-                                    className="primary-button"
-                                    onClick={
-                                        handleAssign
-                                    }
-                                    disabled={
-                                        actionLoading ||
-                                        !selectedEmployee
-                                    }
-                                >
-
-                                    {actionLoading
-                                        ? "Assigning..."
-                                        : complaint.assignedEmployee
-                                            ? "Reassign Employee"
-                                            : "Assign Employee"}
-
-                                </button>
-
-                            </div>
-
-
-                            {/* Employee count */}
-
-                            {employees.length === 0 && (
-
-                                <p className="form-help">
-
-                                    No employees found.
-
-                                </p>
-
-                            )}
-
-                        </div>
-
-                    )}
-
-
-                    {/* =================================================
-                        STATUS UPDATE
-                    ================================================= */}
-
-                    {(role === "ADMIN" ||
-                        role === "EMPLOYEE") && (
-
-                        <div className="action-section">
-
-                            <h3>
-                                Update Status
-                            </h3>
-
-
-                            <div className="action-row">
-
-                                <select
-                                    value={
-                                        selectedStatus
-                                    }
-                                    onChange={(e) =>
-                                        setSelectedStatus(
-                                            e.target.value
-                                        )
-                                    }
-                                    className="form-select"
-                                    disabled={
-                                        actionLoading
-                                    }
-                                >
-
-                                    <option value="PENDING">
-                                        Pending
-                                    </option>
-
-                                    <option value="ASSIGNED">
-                                        Assigned
-                                    </option>
-
-                                    <option value="IN_PROGRESS">
-                                        In Progress
-                                    </option>
-
-                                    <option value="RESOLVED">
-                                        Resolved
-                                    </option>
-
-                                    <option value="CLOSED">
-                                        Closed
-                                    </option>
-
-                                </select>
-
-
-                                <button
-                                    className="primary-button"
-                                    onClick={
-                                        handleStatusUpdate
-                                    }
-                                    disabled={
-                                        actionLoading
-                                    }
-                                >
-
-                                    {actionLoading
-                                        ? "Updating..."
-                                        : "Update Status"}
-
-                                </button>
-
-                            </div>
-
-                        </div>
-
-                    )}
-
-
-                    {/* =================================================
-                        MESSAGE
-                    ================================================= */}
-
-                    {message && (
-
-                        <div className="success-message">
-
-                            {message}
-
-                        </div>
-
-                    )}
-
-                </div>
-
-            </main>
-
+      <AppLayout title="Complaint Details">
+        <div className="content-card">
+          <div className="empty-state">Loading complaint information...</div>
         </div>
+      </AppLayout>
     );
+  }
+
+  if (error || !complaint) {
+    return (
+      <AppLayout title="Complaint Details">
+        <div className="content-card">
+          <div className="error-state" role="alert">
+            {error || "Complaint not found."}
+          </div>
+          <Button variant="secondary" onClick={() => navigate("/complaints")}>
+            ← Back to Complaints
+          </Button>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout
+      title={`Complaint #${complaint.id}`}
+      subtitle={`Submitted on ${
+        complaint.submittedAt || complaint.submittedDate
+          ? new Date(complaint.submittedAt || complaint.submittedDate).toLocaleString()
+          : "N/A"
+      }`}
+      rightAction={
+        <Button
+          variant="secondary"
+          icon={<Icon name="arrowLeft" size={15} />}
+          onClick={() => navigate(-1)}
+        >
+          Back
+        </Button>
+      }
+    >
+      <div className="content-card">
+        {/* COMPLAINT HEADER */}
+        <div className="complaint-details-header">
+          <div>
+            <span className="complaint-id">#{complaint.id} &bull; {complaint.category || "General"}</span>
+            <h2 style={{ fontSize: "20px", margin: "6px 0" }}>{complaint.title}</h2>
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {complaint.priority && <PriorityBadge priority={complaint.priority} />}
+            <StatusBadge status={complaint.status} />
+          </div>
+        </div>
+
+        {/* DETAILS GRID */}
+        <div className="profile-details">
+          <div className="profile-detail">
+            <span>Complainant</span>
+            <strong>{complaint.complainant?.name || complaint.submittedBy || "Anonymous"}</strong>
+          </div>
+
+          <div className="profile-detail">
+            <span>Complainant Email</span>
+            <strong>{complaint.complainant?.email || complaint.submitterEmail || complaint.email || "-"}</strong>
+          </div>
+
+          <div className="profile-detail">
+            <span>Assigned Staff</span>
+            <strong>{complaint.assignedEmployee?.name || complaint.assignedTo || "Unassigned"}</strong>
+          </div>
+
+          <div className="profile-detail">
+            <span>Staff Contact</span>
+            <strong>{complaint.assignedEmployee?.email || "-"}</strong>
+          </div>
+
+          <div className="profile-detail">
+            <span>Submitted At</span>
+            <strong>
+              {complaint.submittedAt || complaint.submittedDate
+                ? new Date(complaint.submittedAt || complaint.submittedDate).toLocaleString()
+                : "-"}
+            </strong>
+          </div>
+
+          <div className="profile-detail">
+            <span>Resolved At</span>
+            <strong>
+              {complaint.resolvedAt || complaint.resolvedDate
+                ? new Date(complaint.resolvedAt || complaint.resolvedDate).toLocaleString()
+                : "In Progress"}
+            </strong>
+          </div>
+        </div>
+
+        {/* DESCRIPTION */}
+        <div className="complaint-description">
+          <h3>Complaint Description</h3>
+          <p>{complaint.description}</p>
+        </div>
+
+        {/* ADMIN EMPLOYEE ASSIGNMENT */}
+        {role === "ADMIN" && (
+          <div className="action-section">
+            <h3>Staff Assignment</h3>
+            <p className="form-help" style={{ marginBottom: "12px" }}>
+              Assign or reassign this ticket to a qualified staff member for resolution.
+            </p>
+            <div className="action-row">
+              <select
+                value={selectedEmployee}
+                onChange={(e) => setSelectedEmployee(e.target.value)}
+                className="form-select"
+                disabled={actionLoading}
+              >
+                <option value="">-- Choose Employee --</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.email})
+                  </option>
+                ))}
+              </select>
+
+              <Button
+                variant="primary"
+                onClick={handleAssign}
+                loading={actionLoading}
+                disabled={actionLoading || !selectedEmployee}
+              >
+                {complaint.assignedEmployee ? "Reassign" : "Assign"}
+              </Button>
+            </div>
+            {employees.length === 0 && (
+              <p className="form-help" style={{ color: "#d97706", marginTop: "8px" }}>
+                No employees registered in the system yet.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* EMPLOYEE / ADMIN STATUS UPDATE */}
+        {(role === "ADMIN" || role === "EMPLOYEE") && (
+          <div className="action-section">
+            <h3>Workflow Status Progression</h3>
+            <p className="form-help" style={{ marginBottom: "12px" }}>
+              Update complaint progression milestone.
+            </p>
+            <div className="action-row">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="form-select"
+                disabled={actionLoading}
+              >
+                <option value="PENDING">PENDING</option>
+                <option value="ASSIGNED">ASSIGNED</option>
+                <option value="IN_PROGRESS">IN_PROGRESS</option>
+                <option value="RESOLVED">RESOLVED</option>
+                <option value="CLOSED">CLOSED</option>
+              </select>
+
+              <Button
+                variant="primary"
+                onClick={() => setStatusModalOpen(true)}
+                loading={actionLoading}
+                disabled={actionLoading || selectedStatus === complaint.status}
+              >
+                Update Status
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* CONFIRMATION DIALOG */}
+      <ConfirmDialog
+        isOpen={statusModalOpen}
+        onClose={() => setStatusModalOpen(false)}
+        onConfirm={confirmStatusUpdate}
+        title="Confirm Status Change"
+        message={`Are you sure you want to change the status of Complaint #${complaint.id} to ${selectedStatus}?`}
+        confirmText="Yes, Update Status"
+        loading={actionLoading}
+      />
+    </AppLayout>
+  );
 }
 
 export default ComplaintDetails;
