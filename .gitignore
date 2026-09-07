@@ -1,0 +1,25 @@
+@"
+# React
+reactapp/node_modules/
+reactapp/build/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Spring Boot
+springapp/target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+"@ | Set-Content .gitignore
