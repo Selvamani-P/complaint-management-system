@@ -16,6 +16,16 @@ export const complaintService = {
     return response.data;
   },
 
+  updateComplaint: async (id, complaintData) => {
+    const response = await api.put(`/complaints/${id}`, complaintData);
+    return response.data;
+  },
+
+  deleteComplaint: async (id) => {
+    const response = await api.delete(`/complaints/${id}`);
+    return response.data;
+  },
+
   assignComplaint: async (complaintId, employeeId) => {
     const response = await api.put(`/complaints/${complaintId}/assign/${employeeId}`);
     return response.data;
@@ -26,6 +36,11 @@ export const complaintService = {
       params: { status }
     });
     return response.data;
+  },
+
+  getComplaintHistory: async (id) => {
+    const response = await api.get(`/complaints/${id}/history`);
+    return Array.isArray(response.data) ? response.data : [];
   }
 };
 

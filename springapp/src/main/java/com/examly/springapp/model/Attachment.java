@@ -18,6 +18,7 @@ public class Attachment {
 
     @ManyToOne
     @JoinColumn(name = "complaint_id")
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     private Complaint complaint;
 
     private String fileUrl;

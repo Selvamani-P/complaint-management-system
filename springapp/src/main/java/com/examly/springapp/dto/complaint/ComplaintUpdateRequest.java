@@ -3,13 +3,15 @@ package com.examly.springapp.dto.complaint;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ComplaintRequest {
+@Builder
+public class ComplaintUpdateRequest {
 
     @NotBlank(message = "Title is required")
     @Size(min = 3, message = "Title must be at least 3 characters")
@@ -21,8 +23,6 @@ public class ComplaintRequest {
 
     @NotBlank(message = "Category is required")
     private String category;
-
-    private String email;
 
     private String priority;
 }

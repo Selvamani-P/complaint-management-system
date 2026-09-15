@@ -5,9 +5,10 @@ export const fetchNotifications = createAsyncThunk(
   "notifications/fetch",
   async (userId, { rejectWithValue }) => {
     try {
-      if (!userId) return [];
-      const data = await notificationService.getNotificationsByUser(userId);
-      return data;
+      if (userId) {
+        return await notificationService.getNotificationsByUser(userId);
+      }
+      return await notificationService.getMyNotifications();
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -26,6 +27,20 @@ export const markNotificationAsRead = createAsyncThunk(
   }
 );
 
+export const markAllNotificationsAsRead = createAsyncThunk(
+  "notifications/markAllAsRead",
+  async (_, { rejectWithValue }) => {
+    try {
+      const data = await notificationService.markAllAsRead();
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+const isUnread = (n) => !n.isRead && !n.read;
+
 const notificationSlice = createSlice({
   name: "notifications",
   initialState: {
@@ -35,8 +50,8 @@ const notificationSlice = createSlice({
   },
   reducers: {
     setNotifications: (state, action) => {
-      state.items = action.payload;
-      state.unreadCount = action.payload.filter((n) => !n.isRead).length;
+      state.items = action.payload || [];
+      state.unreadCount = (action.payload || []).filter(isUnread).length;
     }
   },
   extraReducers: (builder) => {
@@ -46,8 +61,8 @@ const notificationSlice = createSlice({
       })
       .addCase(fetchNotifications.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload;
-        state.unreadCount = action.payload.filter((n) => !n.isRead).length;
+        state.items = action.payload || [];
+        state.unreadCount = (action.payload || []).filter(isUnread).length;
       })
       .addCase(fetchNotifications.rejected, (state) => {
         state.loading = false;
@@ -56,10 +71,14 @@ const notificationSlice = createSlice({
         if (action.payload) {
           const index = state.items.findIndex((n) => n.id === action.payload.id);
           if (index !== -1) {
-            state.items[index] = action.payload;
+            state.items[index] = { ...state.items[index], ...action.payload, isRead: true, read: true };
           }
-          state.unreadCount = state.items.filter((n) => !n.isRead).length;
+          state.unreadCount = state.items.filter(isUnread).length;
         }
+      })
+      .addCase(markAllNotificationsAsRead.fulfilled, (state) => {
+        state.items = state.items.map((n) => ({ ...n, isRead: true, read: true }));
+        state.unreadCount = 0;
       });
   }
 });

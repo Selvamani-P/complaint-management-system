@@ -32,7 +32,7 @@ public class AuthServiceImpl implements AuthService {
     public String register(RegisterRequest request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            return "Email already exists";
+            throw new com.examly.springapp.exception.BadRequestException("Email already exists");
         }
 
         User user = User.builder()
@@ -72,7 +72,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository
                 .findByEmail(request.getEmail())
                 .orElseThrow(() ->
-                        new RuntimeException("User not found")
+                        new com.examly.springapp.exception.ResourceNotFoundException("User not found")
                 );
 
         // Create UserDetails for JWT
@@ -89,12 +89,15 @@ public class AuthServiceImpl implements AuthService {
                 jwtService.generateToken(userDetails);
 
         // Return token + user information
-        return new LoginResponse(
+        LoginResponse response = new LoginResponse(
                 token,
                 user.getRole().name(),
                 user.getName(),
                 user.getEmail(),
                 "Login Successful"
         );
+        response.setId(user.getId());
+        response.setPhone(user.getPhone());
+        return response;
     }
 }

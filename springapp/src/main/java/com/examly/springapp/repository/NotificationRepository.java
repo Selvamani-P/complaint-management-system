@@ -10,4 +10,7 @@ public interface NotificationRepository
 
     List<Notification> findByUserId(Long userId);
 
+    List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    void deleteByUserId(Long userId);
 }

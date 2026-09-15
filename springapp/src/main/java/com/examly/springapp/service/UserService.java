@@ -17,4 +17,10 @@ public interface UserService {
     User updateUser(Long id, User updatedUser);
 
     void deleteUser(Long id);
+
+    User getUserByEmail(String email);
+
+    User updateUserProfile(Long id, com.examly.springapp.dto.user.UserUpdateRequest request, String currentUserEmail, boolean isAdmin);
+
+    void deleteUserAccount(Long id, String currentUserEmail, boolean isAdmin);
 }

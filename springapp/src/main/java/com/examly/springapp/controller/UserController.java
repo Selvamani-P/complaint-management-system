@@ -1,9 +1,12 @@
 package com.examly.springapp.controller;
 
+import com.examly.springapp.dto.user.UserUpdateRequest;
 import com.examly.springapp.exception.ResourceNotFoundException;
 import com.examly.springapp.model.Role;
 import com.examly.springapp.model.User;
 import com.examly.springapp.repository.UserRepository;
+import com.examly.springapp.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -12,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -19,6 +23,7 @@ import java.util.List;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final UserService userService;
 
     // ==============================
     // GET ALL USERS (ADMIN ONLY)
@@ -38,6 +43,19 @@ public class UserController {
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<List<User>> getEmployees() {
         return ResponseEntity.ok(userRepository.findByRole(Role.EMPLOYEE));
+    }
+
+    // ==============================
+    // GET CURRENT USER PROFILE (ME)
+    // ==============================
+
+    @GetMapping("/profile")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE', 'CITIZEN')")
+    public ResponseEntity<User> getCurrentUserProfile(Authentication authentication) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+        return ResponseEntity.ok(user);
     }
 
     // ==============================
@@ -61,5 +79,42 @@ public class UserController {
         }
 
         return ResponseEntity.ok(user);
+    }
+
+    // ==============================
+    // UPDATE USER (SELF OR ADMIN)
+    // ==============================
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE', 'CITIZEN')")
+    public ResponseEntity<User> updateUser(
+            @PathVariable Long id,
+            @Valid @RequestBody UserUpdateRequest request,
+            Authentication authentication) {
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        String currentUserEmail = authentication.getName();
+
+        User updated = userService.updateUserProfile(id, request, currentUserEmail, isAdmin);
+        return ResponseEntity.ok(updated);
+    }
+
+    // ==============================
+    // DELETE USER (SELF OR ADMIN)
+    // ==============================
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE', 'CITIZEN')")
+    public ResponseEntity<Map<String, String>> deleteUser(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        String currentUserEmail = authentication.getName();
+
+        userService.deleteUserAccount(id, currentUserEmail, isAdmin);
+        return ResponseEntity.ok(Map.of("message", "User account deleted successfully"));
     }
 }

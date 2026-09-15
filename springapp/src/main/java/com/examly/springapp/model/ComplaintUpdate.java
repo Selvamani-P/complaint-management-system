@@ -19,9 +19,11 @@ public class ComplaintUpdate {
     private Long id;
 
     @ManyToOne
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     private Complaint complaint;
 
     @ManyToOne
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     private User user;
 
     @Column(columnDefinition = "TEXT")

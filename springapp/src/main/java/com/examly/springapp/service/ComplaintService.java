@@ -25,4 +25,19 @@ public interface ComplaintService {
             Long complaintId,
             String status
     );
+
+    Complaint updateComplaint(
+            Long complaintId,
+            com.examly.springapp.dto.complaint.ComplaintUpdateRequest request,
+            String userEmail,
+            boolean isAdmin
+    );
+
+    void deleteComplaint(
+            Long complaintId,
+            String userEmail,
+            boolean isAdmin
+    );
+
+    List<com.examly.springapp.model.ComplaintUpdate> getComplaintHistory(Long complaintId);
 }

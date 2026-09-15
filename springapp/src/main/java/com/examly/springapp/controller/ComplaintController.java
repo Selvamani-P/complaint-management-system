@@ -1,8 +1,10 @@
 package com.examly.springapp.controller;
 
 import com.examly.springapp.dto.complaint.ComplaintRequest;
+import com.examly.springapp.dto.complaint.ComplaintUpdateRequest;
 import com.examly.springapp.exception.ResourceNotFoundException;
 import com.examly.springapp.model.Complaint;
+import com.examly.springapp.model.ComplaintUpdate;
 import com.examly.springapp.model.User;
 import com.examly.springapp.repository.ComplaintRepository;
 import com.examly.springapp.repository.UserRepository;
@@ -18,6 +20,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/complaints")
@@ -113,6 +116,43 @@ public class ComplaintController {
     }
 
     // =====================================================
+    // EDIT COMPLAINT (CITIZEN OWNER OR ADMIN)
+    // =====================================================
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CITIZEN')")
+    public ResponseEntity<Complaint> updateComplaint(
+            @PathVariable Long id,
+            @Valid @RequestBody ComplaintUpdateRequest request,
+            Authentication authentication
+    ) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        String userEmail = authentication.getName();
+
+        Complaint updated = complaintService.updateComplaint(id, request, userEmail, isAdmin);
+        return ResponseEntity.ok(updated);
+    }
+
+    // =====================================================
+    // DELETE COMPLAINT (CITIZEN OWNER OR ADMIN)
+    // =====================================================
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CITIZEN')")
+    public ResponseEntity<Map<String, String>> deleteComplaint(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        String userEmail = authentication.getName();
+
+        complaintService.deleteComplaint(id, userEmail, isAdmin);
+        return ResponseEntity.ok(Map.of("message", "Complaint deleted successfully"));
+    }
+
+    // =====================================================
     // ASSIGN COMPLAINT
     // ADMIN ONLY
     // =====================================================
@@ -168,5 +208,34 @@ public class ComplaintController {
                 );
 
         return ResponseEntity.ok(complaint);
+    }
+
+    // =====================================================
+    // COMPLAINT HISTORY (TIMELINE)
+    // =====================================================
+
+    @GetMapping("/{id}/history")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE', 'CITIZEN')")
+    public ResponseEntity<List<ComplaintUpdate>> getComplaintHistory(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        Complaint complaint = complaintService.getComplaintById(id);
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isEmployee = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_EMPLOYEE"));
+
+        if (!isAdmin && !isEmployee) {
+            // Citizen: can only view history of own complaint
+            if (complaint.getComplainant() == null ||
+                    !complaint.getComplainant().getEmail().equalsIgnoreCase(authentication.getName())) {
+                throw new AccessDeniedException("You do not have permission to view this complaint's history");
+            }
+        }
+
+        List<ComplaintUpdate> history = complaintService.getComplaintHistory(id);
+        return ResponseEntity.ok(history);
     }
 }

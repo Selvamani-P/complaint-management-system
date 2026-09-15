@@ -9,4 +9,6 @@ import java.util.List;
 public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
 
     List<Attachment> findByComplaint(Complaint complaint);
+
+    void deleteByComplaint(Complaint complaint);
 }

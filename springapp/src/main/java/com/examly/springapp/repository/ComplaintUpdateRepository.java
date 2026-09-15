@@ -9,4 +9,8 @@ import java.util.List;
 public interface ComplaintUpdateRepository extends JpaRepository<ComplaintUpdate, Long> {
 
     List<ComplaintUpdate> findByComplaint(Complaint complaint);
+
+    List<ComplaintUpdate> findByComplaintOrderByTimestampAsc(Complaint complaint);
+
+    void deleteByComplaint(Complaint complaint);
 }

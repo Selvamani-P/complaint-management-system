@@ -8,6 +8,8 @@ import com.examly.springapp.model.ComplaintStatus;
 import com.examly.springapp.model.Role;
 import com.examly.springapp.model.User;
 import com.examly.springapp.repository.ComplaintRepository;
+import com.examly.springapp.repository.ComplaintUpdateRepository;
+import com.examly.springapp.repository.NotificationRepository;
 import com.examly.springapp.repository.UserRepository;
 import com.examly.springapp.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +42,12 @@ public class SecurityIntegrationTest {
     private ComplaintRepository complaintRepository;
 
     @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private ComplaintUpdateRepository complaintUpdateRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -60,6 +68,8 @@ public class SecurityIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
+        complaintUpdateRepository.deleteAll();
         complaintRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -310,5 +320,187 @@ public class SecurityIntegrationTest {
                         .param("status", "NON_EXISTENT_STATUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error", containsString("Invalid status value")));
+    }
+
+    // =========================================================================
+    // 5. COMPLAINT EDIT, DELETE, AND HISTORY TESTS
+    // =========================================================================
+
+    @Test
+    void testCitizenCanEditOwnComplaint() throws Exception {
+        Complaint c = complaintRepository.save(Complaint.builder()
+                .title("Original Title")
+                .description("Original description that is long enough")
+                .category("SERVICE")
+                .priority("MEDIUM")
+                .status(ComplaintStatus.PENDING)
+                .complainant(citizen1)
+                .submittedAt(LocalDateTime.now())
+                .build());
+
+        com.examly.springapp.dto.complaint.ComplaintUpdateRequest updateReq =
+                new com.examly.springapp.dto.complaint.ComplaintUpdateRequest(
+                        "Updated Title",
+                        "Updated description that is also long enough",
+                        "BILLING",
+                        "HIGH"
+                );
+
+        mockMvc.perform(put("/api/complaints/" + c.getId())
+                        .header("Authorization", "Bearer " + citizen1Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title", is("Updated Title")))
+                .andExpect(jsonPath("$.priority", is("HIGH")));
+    }
+
+    @Test
+    void testCitizenCannotEditOtherCitizenComplaint() throws Exception {
+        Complaint c = complaintRepository.save(Complaint.builder()
+                .title("Citizen 1 Title")
+                .description("Citizen 1 description long enough")
+                .category("SERVICE")
+                .priority("MEDIUM")
+                .status(ComplaintStatus.PENDING)
+                .complainant(citizen1)
+                .submittedAt(LocalDateTime.now())
+                .build());
+
+        com.examly.springapp.dto.complaint.ComplaintUpdateRequest updateReq =
+                new com.examly.springapp.dto.complaint.ComplaintUpdateRequest(
+                        "Hacked Title",
+                        "Hacked description long enough",
+                        "BILLING",
+                        "HIGH"
+                );
+
+        mockMvc.perform(put("/api/complaints/" + c.getId())
+                        .header("Authorization", "Bearer " + citizen2Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testCitizenCannotEditResolvedComplaint() throws Exception {
+        Complaint c = complaintRepository.save(Complaint.builder()
+                .title("Resolved Complaint")
+                .description("Already resolved complaint description")
+                .category("SERVICE")
+                .priority("MEDIUM")
+                .status(ComplaintStatus.RESOLVED)
+                .complainant(citizen1)
+                .submittedAt(LocalDateTime.now())
+                .build());
+
+        com.examly.springapp.dto.complaint.ComplaintUpdateRequest updateReq =
+                new com.examly.springapp.dto.complaint.ComplaintUpdateRequest(
+                        "New Title",
+                        "New description long enough",
+                        "SERVICE",
+                        "LOW"
+                );
+
+        mockMvc.perform(put("/api/complaints/" + c.getId())
+                        .header("Authorization", "Bearer " + citizen1Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", containsStringIgnoringCase("cannot edit")));
+    }
+
+    @Test
+    void testCitizenCanDeleteOwnComplaint() throws Exception {
+        Complaint c = complaintRepository.save(Complaint.builder()
+                .title("To Delete")
+                .description("Description to delete long enough")
+                .category("SERVICE")
+                .priority("LOW")
+                .status(ComplaintStatus.PENDING)
+                .complainant(citizen1)
+                .submittedAt(LocalDateTime.now())
+                .build());
+
+        mockMvc.perform(delete("/api/complaints/" + c.getId())
+                        .header("Authorization", "Bearer " + citizen1Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message", is("Complaint deleted successfully")));
+    }
+
+    @Test
+    void testCitizenCannotDeleteOtherCitizenComplaint() throws Exception {
+        Complaint c = complaintRepository.save(Complaint.builder()
+                .title("Citizen 1 Complaint")
+                .description("Description long enough")
+                .category("SERVICE")
+                .priority("LOW")
+                .status(ComplaintStatus.PENDING)
+                .complainant(citizen1)
+                .submittedAt(LocalDateTime.now())
+                .build());
+
+        mockMvc.perform(delete("/api/complaints/" + c.getId())
+                        .header("Authorization", "Bearer " + citizen2Token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testComplaintHistoryAndNotificationsGenerated() throws Exception {
+        ComplaintRequest req = new ComplaintRequest("History Test", "Valid description for testing history", "SERVICE", "citizen1@example.com", "MEDIUM");
+
+        // Citizen creates complaint -> history update recorded
+        String response = mockMvc.perform(post("/api/complaints")
+                        .header("Authorization", "Bearer " + citizen1Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        com.fasterxml.jackson.databind.JsonNode rootNode = objectMapper.readTree(response);
+        long complaintId = rootNode.get("id").asLong();
+
+        // Citizen views history
+        mockMvc.perform(get("/api/complaints/" + complaintId + "/history")
+                        .header("Authorization", "Bearer " + citizen1Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
+    }
+
+    @Test
+    void testUserProfileUpdateAndDuplicateEmailRejection() throws Exception {
+        // 1. Attempt duplicate email with citizen2's email -> 400 Bad Request
+        com.examly.springapp.dto.user.UserUpdateRequest dupReq =
+                new com.examly.springapp.dto.user.UserUpdateRequest(
+                        "Citizen One Renamed",
+                        "citizen2@example.com",
+                        "9876543210",
+                        Role.CITIZEN
+                );
+
+        mockMvc.perform(put("/api/users/" + citizen1.getId())
+                        .header("Authorization", "Bearer " + citizen1Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dupReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", containsString("already registered")));
+
+        // 2. Valid profile update with new unique email and phone
+        com.examly.springapp.dto.user.UserUpdateRequest updateReq =
+                new com.examly.springapp.dto.user.UserUpdateRequest(
+                        "Updated Citizen",
+                        "citizen1.new@example.com",
+                        "9876543210",
+                        Role.CITIZEN
+                );
+
+        mockMvc.perform(put("/api/users/" + citizen1.getId())
+                        .header("Authorization", "Bearer " + citizen1Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name", is("Updated Citizen")))
+                .andExpect(jsonPath("$.email", is("citizen1.new@example.com")))
+                .andExpect(jsonPath("$.phone", is("9876543210")));
     }
 }

@@ -26,6 +26,7 @@ public class Notification {
 
     @ManyToOne
     @JoinColumn(name = "user_id")
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     private User user;
 
     @PrePersist

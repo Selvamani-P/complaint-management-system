@@ -1,10 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import Icon from "../common/Icon";
 import { toggleMobileSidebar } from "../../store/slices/uiSlice";
 import { logout } from "../../store/slices/authSlice";
-import { markNotificationAsRead } from "../../store/slices/notificationSlice";
+import {
+  fetchNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead
+} from "../../store/slices/notificationSlice";
 
 export function Navbar({ title, subtitle, rightAction }) {
   const dispatch = useDispatch();
@@ -13,8 +17,15 @@ export function Navbar({ title, subtitle, rightAction }) {
 
   const role = (localStorage.getItem("role") || "CITIZEN").toUpperCase();
   const name = localStorage.getItem("name") || role;
+  const token = localStorage.getItem("token");
   const notifications = useSelector((state) => state.notifications?.items || []);
   const unreadCount = useSelector((state) => state.notifications?.unreadCount || 0);
+
+  useEffect(() => {
+    if (token) {
+      dispatch(fetchNotifications());
+    }
+  }, [dispatch, token]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -22,9 +33,19 @@ export function Navbar({ title, subtitle, rightAction }) {
   };
 
   const handleNotificationClick = (n) => {
-    if (!n.isRead) {
+    if (!n.isRead && !n.read) {
       dispatch(markNotificationAsRead(n.id));
     }
+    const complaintId = n.complaint?.id || n.complaintId;
+    if (complaintId) {
+      setShowNotifications(false);
+      navigate(`/complaints/${complaintId}`);
+    }
+  };
+
+  const handleMarkAllRead = (e) => {
+    e.stopPropagation();
+    dispatch(markAllNotificationsAsRead());
   };
 
   const getRoleBadgeClass = () => {
@@ -40,7 +61,7 @@ export function Navbar({ title, subtitle, rightAction }) {
         right: 0,
         top: "100%",
         marginTop: "8px",
-        width: "300px",
+        width: "320px",
         background: "var(--bg-surface)",
         borderRadius: "var(--radius-lg)",
         boxShadow: "var(--shadow-lg)",
@@ -62,42 +83,69 @@ export function Navbar({ title, subtitle, rightAction }) {
           alignItems: "center"
         }}
       >
-        <span>Notifications</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span>Notifications</span>
+          {unreadCount > 0 && (
+            <span style={{ color: "var(--primary-600)", fontSize: "11px", fontWeight: "700" }}>
+              ({unreadCount})
+            </span>
+          )}
+        </div>
         {unreadCount > 0 && (
-          <span style={{ color: "var(--primary-600)", fontSize: "11px", fontWeight: "700" }}>
-            {unreadCount} new
-          </span>
+          <button
+            type="button"
+            onClick={handleMarkAllRead}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--primary-600)",
+              fontSize: "11.5px",
+              fontWeight: "600",
+              cursor: "pointer",
+              padding: "2px 6px"
+            }}
+          >
+            Mark all read
+          </button>
         )}
       </div>
-      <div style={{ maxHeight: "240px", overflowY: "auto", padding: "4px 0" }}>
+      <div style={{ maxHeight: "260px", overflowY: "auto", padding: "4px 0" }}>
         {notifications.length === 0 ? (
           <div style={{ padding: "20px 16px", textAlign: "center", color: "var(--slate-400)", fontSize: "12px" }}>
             No notifications available
           </div>
         ) : (
-          notifications.map((n) => (
-            <div
-              key={n.id}
-              onClick={() => handleNotificationClick(n)}
-              style={{
-                padding: "10px 14px",
-                fontSize: "12.5px",
-                borderBottom: "1px solid var(--slate-100)",
-                backgroundColor: n.isRead ? "transparent" : "var(--primary-50)",
-                cursor: "pointer",
-                transition: "background 150ms ease"
-              }}
-            >
-              <div style={{ color: "var(--slate-800)", fontWeight: n.isRead ? "400" : "600" }}>
-                {n.message}
+          notifications.map((n) => {
+            const isUnread = !n.isRead && !n.read;
+            return (
+              <div
+                key={n.id}
+                onClick={() => handleNotificationClick(n)}
+                style={{
+                  padding: "10px 14px",
+                  fontSize: "12.5px",
+                  borderBottom: "1px solid var(--slate-100)",
+                  backgroundColor: isUnread ? "var(--primary-50)" : "transparent",
+                  cursor: "pointer",
+                  transition: "background 150ms ease"
+                }}
+              >
+                <div style={{ color: "var(--slate-800)", fontWeight: isUnread ? "600" : "400" }}>
+                  {n.message}
+                </div>
+                {(n.createdAt || n.sentAt || n.date) && (
+                  <small style={{ display: "block", color: "var(--slate-400)", fontSize: "10.5px", marginTop: "3px" }}>
+                    {new Date(n.createdAt || n.sentAt || n.date).toLocaleString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </small>
+                )}
               </div>
-              {(n.createdAt || n.sentAt || n.date) && (
-                <small style={{ display: "block", color: "var(--slate-400)", fontSize: "10.5px", marginTop: "3px" }}>
-                  {new Date(n.createdAt || n.sentAt || n.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </small>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

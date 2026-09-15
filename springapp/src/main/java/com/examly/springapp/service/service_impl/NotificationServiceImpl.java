@@ -23,10 +23,21 @@ public class NotificationServiceImpl
     }
 
     @Override
+    public Notification sendNotification(com.examly.springapp.model.User user, String message) {
+        if (user == null) return null;
+        Notification notification = Notification.builder()
+                .user(user)
+                .message(message)
+                .isRead(false)
+                .build();
+        return notificationRepository.save(notification);
+    }
+
+    @Override
     public List<Notification> getNotificationsByUser(
             Long userId) {
 
-        return notificationRepository.findByUserId(userId);
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
     @Override
@@ -36,11 +47,20 @@ public class NotificationServiceImpl
         Notification notification =
                 notificationRepository.findById(notificationId)
                         .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Notification not found"));
+                                new com.examly.springapp.exception.ResourceNotFoundException(
+                                        "Notification not found with ID: " + notificationId));
 
         notification.setRead(true);
 
         return notificationRepository.save(notification);
+    }
+
+    @Override
+    public void markAllAsRead(Long userId) {
+        List<Notification> userNotifications = notificationRepository.findByUserId(userId);
+        for (Notification n : userNotifications) {
+            n.setRead(true);
+        }
+        notificationRepository.saveAll(userNotifications);
     }
 }

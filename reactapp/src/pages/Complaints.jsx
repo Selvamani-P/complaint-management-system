@@ -20,6 +20,7 @@ export function Complaints() {
   const [error, setError] = useState("");
 
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState("NEWEST");
@@ -86,6 +87,12 @@ export function Complaints() {
       );
     }
 
+    if (priorityFilter !== "ALL") {
+      list = list.filter(
+        (c) => (c.priority || "MEDIUM").toUpperCase() === priorityFilter.toUpperCase()
+      );
+    }
+
     if (categoryFilter !== "ALL") {
       list = list.filter((c) => c.category === categoryFilter);
     }
@@ -96,8 +103,9 @@ export function Complaints() {
         const title = (c.title || "").toLowerCase();
         const desc = (c.description || "").toLowerCase();
         const cat = (c.category || "").toLowerCase();
+        const priority = (c.priority || "").toLowerCase();
         const id = String(c.id || "");
-        return title.includes(q) || desc.includes(q) || cat.includes(q) || id.includes(q);
+        return title.includes(q) || desc.includes(q) || cat.includes(q) || priority.includes(q) || id.includes(q);
       });
     }
 
@@ -113,12 +121,12 @@ export function Complaints() {
     });
 
     return list;
-  }, [roleComplaints, statusFilter, categoryFilter, search, sortOrder]);
+  }, [roleComplaints, statusFilter, priorityFilter, categoryFilter, search, sortOrder]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, categoryFilter, search, sortOrder]);
+  }, [statusFilter, priorityFilter, categoryFilter, search, sortOrder]);
 
   const totalPages = Math.ceil(filteredComplaints.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -127,6 +135,7 @@ export function Complaints() {
   const clearFilters = () => {
     setSearch("");
     setStatusFilter("ALL");
+    setPriorityFilter("ALL");
     setCategoryFilter("ALL");
     setSortOrder("NEWEST");
     setCurrentPage(1);
@@ -184,6 +193,18 @@ export function Complaints() {
             <option value="IN_PROGRESS">In Progress</option>
             <option value="RESOLVED">Resolved</option>
             <option value="CLOSED">Closed</option>
+          </select>
+
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="form-select"
+            data-testid="priority-filter"
+          >
+            <option value="ALL">All Priorities</option>
+            <option value="LOW">Low Priority</option>
+            <option value="MEDIUM">Medium Priority</option>
+            <option value="HIGH">High Priority</option>
           </select>
 
           <select

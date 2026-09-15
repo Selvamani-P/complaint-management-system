@@ -15,7 +15,8 @@ export function ComplaintFormPage() {
   const [formData, setFormData] = useState({
     title: "",
     category: "",
-    description: ""
+    description: "",
+    priority: "MEDIUM"
   });
 
   const [clientErrors, setClientErrors] = useState({});
@@ -73,6 +74,7 @@ export function ComplaintFormPage() {
         title: formData.title.trim(),
         description: formData.description.trim(),
         category: formData.category,
+        priority: formData.priority || "MEDIUM",
         email: email
       });
 
@@ -158,6 +160,26 @@ export function ComplaintFormPage() {
             {clientErrors.category && (
               <span className="form-error-msg">{clientErrors.category}</span>
             )}
+          </div>
+
+          {/* PRIORITY */}
+          <div className="form-group">
+            <label htmlFor="complaint-priority">
+              Priority <span className="required-star">*</span>
+            </label>
+            <select
+              id="complaint-priority"
+              name="priority"
+              className="form-select"
+              value={formData.priority}
+              onChange={handleChange}
+              disabled={loading}
+              required
+            >
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </select>
           </div>
 
           {/* DESCRIPTION */}

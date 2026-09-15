@@ -23,7 +23,9 @@ public class ReportServiceImpl implements ReportService {
 
         Map<String, Long> report = new HashMap<>();
 
-        report.put("Total Complaints", (long) complaints.size());
+        long total = complaints.size();
+        report.put("Total Complaints", total);
+        report.put("total", total);
 
         return report;
     }
@@ -35,26 +37,26 @@ public class ReportServiceImpl implements ReportService {
 
         Map<String, Long> report = new HashMap<>();
 
-        report.put(
-                "Pending",
-                complaints.stream()
-                        .filter(c -> c.getStatus().name().equals("PENDING"))
-                        .count()
-        );
+        long pending = complaints.stream().filter(c -> c.getStatus() != null && c.getStatus().name().equals("PENDING")).count();
+        long assigned = complaints.stream().filter(c -> c.getStatus() != null && c.getStatus().name().equals("ASSIGNED")).count();
+        long inProgress = complaints.stream().filter(c -> c.getStatus() != null && c.getStatus().name().equals("IN_PROGRESS")).count();
+        long resolved = complaints.stream().filter(c -> c.getStatus() != null && c.getStatus().name().equals("RESOLVED")).count();
+        long closed = complaints.stream().filter(c -> c.getStatus() != null && c.getStatus().name().equals("CLOSED")).count();
 
-        report.put(
-                "Assigned",
-                complaints.stream()
-                        .filter(c -> c.getStatus().name().equals("ASSIGNED"))
-                        .count()
-        );
+        report.put("Pending", pending);
+        report.put("PENDING", pending);
 
-        report.put(
-                "Resolved",
-                complaints.stream()
-                        .filter(c -> c.getStatus().name().equals("RESOLVED"))
-                        .count()
-        );
+        report.put("Assigned", assigned);
+        report.put("ASSIGNED", assigned);
+
+        report.put("In Progress", inProgress);
+        report.put("IN_PROGRESS", inProgress);
+
+        report.put("Resolved", resolved);
+        report.put("RESOLVED", resolved);
+
+        report.put("Closed", closed);
+        report.put("CLOSED", closed);
 
         return report;
     }
